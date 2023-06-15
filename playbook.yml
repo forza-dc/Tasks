@@ -1,0 +1,26 @@
+---
+- name: Update terraform.tf with private IP
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Read info.json
+      ansible.builtin.include_vars:
+        file: /home/ec2-user/info.json
+      register: info_json
+
+    - name: Extract private IP from info.json
+      set_fact:
+        private_ip: "{{ info_json['Instances'][0]['PrivateIpAddress'] }}"
+      when: info_json is defined and info_json['Instances'] is defined and info_json['Instances'] | length > 0
+
+    - name: Read terraform.tf
+      ansible.builtin.slurp:
+        src: /home/ec2-user/terraform.tf
+      register: terraform_tf
+
+    - name: Replace ec2_private_ip in terraform.tf
+      ansible.builtin.replace:
+        path: /home/ec2-user/terraform.tf
+        regexp: 'ec2_private_ip = "(.*)"\n'
+        replace: 'ec2_private_ip = "{{ private_ip }}"\n'
+      when: terraform_tf['content'] | b64decode | ansible.builtin.regex_search('ec2_private_ip = "(.*)"\n') and private_ip is defined
